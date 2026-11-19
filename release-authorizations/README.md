@@ -4,7 +4,8 @@ There is deliberately no active authorization in this repository preparation.
 An absent authorization fails before network access or any write. Never add a
 sample release or placeholder authorization to activate the workflow.
 
-For each actual qualified release, the coordinator reviews a new JSON file named
+For each actual qualified release, first stage the real draft outside CI and
+record its numeric GitHub release ID. Then the coordinator reviews a JSON file named
 `host-agent-v<version>.json` in this directory through the normal source review
 process. Use only the fields below; unknown fields, duplicate keys, missing or
 extra assets, invalid SemVer, and invalid sizes/digests fail closed.
@@ -14,6 +15,7 @@ extra assets, invalid SemVer, and invalid sizes/digests fail closed.
 | `schema_version` | Integer `1` |
 | `repository` | `vitral-ai/vitral-host-agent-releases` |
 | `repository_id` | Integer `1463746626` |
+| `release_id` | Exact positive integer ID of the actual staged draft, collected before authorizing; stays fixed after publish and on reruns |
 | `tag` | Exact approved `host-agent-v` + SemVer |
 | `public_target_sha` | Full lowercase 40-character commit SHA already in this public repository, selected for the distribution tag |
 | `source_sha` | Full lowercase 40-character qualified private backend producer commit |

@@ -18,7 +18,7 @@ TAG = "host-agent-v1.2.3-rc.1"
 def fixture():
     blobs = {n: ("synthetic-test-only-" + n).encode() for n in m.LIMITS if n != "SHA256SUMS"}
     blobs["SHA256SUMS"] = "".join(m.digest(blobs[n]) + "  " + n + "\n" for n in sorted(blobs)).encode()
-    a = {"schema_version": 1, "repository": m.REPO, "repository_id": m.REPO_ID, "tag": TAG,
+    a = {"schema_version": 1, "repository": m.REPO, "repository_id": m.REPO_ID, "release_id": 42, "tag": TAG,
          "public_target_sha": "ab" * 20, "source_sha": "cd" * 20,
          "qualified_receipt_sha256": "ef" * 32,
          "assets": {n: {"size": len(b), "sha256": m.digest(b)} for n, b in blobs.items()}}
@@ -40,9 +40,13 @@ class FakeAPI:
         self.change_at = None
         self.publish_immutable = True
         self.uncertain = False
+        self.paths = []
 
     def api(self, path, **kwargs):
+        self.paths.append(path)
         if kwargs.get("method") == "PATCH":
+            if path != "/releases/42":
+                raise m.Rejected("github_http_404")
             self.writes.append((path, kwargs))
             self.release.update(draft=False, immutable=self.publish_immutable)
             if self.uncertain:
@@ -56,9 +60,15 @@ class FakeAPI:
         if path.startswith("/git/ref/tags/"):
             return {"ref": "refs/tags/" + TAG, "object": {"type": "commit", "sha": self.a["public_target_sha"]}}
         if path.startswith("/releases/tags/"):
+            if self.release["draft"]:
+                raise m.Rejected("github_http_404")
+            return copy.deepcopy(self.release)
+        if path == "/releases/42":
             return copy.deepcopy(self.release)
         if path == "/releases/42/assets":
             return copy.deepcopy(self.assets)
+        if path.startswith("/releases/"):
+            raise m.Rejected("github_http_404")
         raise AssertionError(path)
 
     def blob(self, asset_id, size):
@@ -103,6 +113,17 @@ class SealTests(unittest.TestCase):
             with self.rejected("authorization_target_mismatch"):
                 m.authorization(json.dumps(a), TAG)
 
+    def test_invalid_release_id_rejected_by_authorization(self):
+        for release_id in (True, 0, -1, "42", None):
+            a = copy.deepcopy(self.api.a)
+            a["release_id"] = release_id
+            with self.subTest(release_id=release_id), self.rejected("invalid_github_id"):
+                m.authorization(json.dumps(a), TAG)
+        a = copy.deepcopy(self.api.a)
+        del a["release_id"]
+        with self.rejected("invalid_fields"):
+            m.authorization(json.dumps(a), TAG)
+
     def test_missing_extra_or_oversize_authorization_assets_rejected(self):
         for mutation in ("missing", "extra", "oversize"):
             a = copy.deepcopy(self.api.a)
@@ -120,6 +141,32 @@ class SealTests(unittest.TestCase):
         self.assertEqual(self.api.writes, [("/releases/42", {"method": "PATCH", "body": {"draft": False}})])
         self.assertEqual(self.api.downloads, 10)
         self.assertEqual(len(self.verified), 4)
+
+    def test_draft_tag_endpoint_404_but_approved_id_succeeds(self):
+        with self.rejected("github_http_404"):
+            self.api.api("/releases/tags/" + TAG)
+        self.assertTrue(self.api.api("/releases/42")["draft"])
+        self.api.paths.clear()
+        self.run_seal()
+        self.assertNotIn("/releases/tags/" + TAG, self.api.paths)
+        self.assertEqual(self.api.paths.count("/releases/42"), 4)  # Three reads and sole PATCH.
+
+    def test_wrong_approved_release_id_blocks_before_write(self):
+        self.api.a["release_id"] = 43
+        with self.rejected("github_http_404"):
+            self.run_seal()
+        self.assertEqual(self.api.writes, [])
+        self.assertEqual(self.api.downloads, 0)
+
+    def test_wrong_returned_release_id_or_tag_blocks_before_write(self):
+        for key, value, error in (("id", 43, "release_identity_mismatch"),
+                                  ("tag_name", "host-agent-v9.9.9", "release_metadata_mismatch")):
+            self.api = FakeAPI()
+            self.api.release[key] = value
+            with self.subTest(key=key), self.rejected(error):
+                self.run_seal()
+            self.assertEqual(self.api.writes, [])
+            self.assertEqual(self.api.downloads, 0)
 
     def test_already_immutable_is_readonly(self):
         self.api.release.update(draft=False, immutable=True)
@@ -184,6 +231,9 @@ class SealTests(unittest.TestCase):
         self.assertEqual(len(self.api.writes), 1)
         self.run_seal()
         self.assertEqual(len(self.api.writes), 1)
+        self.assertFalse(any(path.startswith("/releases/tags/") for path in self.api.paths))
+        self.assertTrue(all(path == "/releases/42" for path in self.api.paths
+                            if path.startswith("/releases/") and not path.endswith("/assets")))
 
     def test_changed_asset_after_publish_never_passes(self):
         self.api.change_at = 3

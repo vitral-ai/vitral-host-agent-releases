@@ -11,8 +11,9 @@ staging step later; it is not required by this workflow.
 The coordinator owns the final qualified-publish gate. Before any real staging,
 obtain the exact qualified producer commit/tag/workflow and final G1 receipt,
 both architecture binaries and their original private-producer Sigstore bundles,
-and the five final hashes/sizes. Review the authorization described in
-[`release-authorizations/README.md`](../release-authorizations/README.md). Do not
+and the five final hashes/sizes. Review these facts before staging. The real draft
+ID collected during staging is then included in the final authorization described
+in [`release-authorizations/README.md`](../release-authorizations/README.md). Do not
 stage test payloads or create dummy immutable tags. Do not upload source code,
 private receipt contents, logs, workflow copies, credentials, or an archive of a
 private checkout.
@@ -45,8 +46,8 @@ other operators and automation must leave this tag/draft alone until readback
 finishes. The workflow serializes runs of the same tag but cannot lock an
 external operator. This is a bounded per-release ownership requirement.
 
-After the workflow and real authorization are reviewed and merged, use the
-approved tag and full public target SHA from that authorization. The following
+After the workflow source and intended artifact/source facts are reviewed, use the
+approved tag and full public target SHA. The following
 are **operator instructions, not commands executed during source preparation**.
 Set `RELEASE_TAG` and `PUBLIC_TARGET_SHA` to those reviewed values. From the
 directory containing only the five final approved files:
@@ -71,6 +72,22 @@ gh release upload "$RELEASE_TAG" --repo vitral-ai/vitral-host-agent-releases \
   SHA256SUMS
 ```
 
+Collect the actual draft release ID using authenticated List releases (which
+includes drafts for callers with push access):
+
+```sh
+gh api repos/vitral-ai/vitral-host-agent-releases/releases --paginate \
+  --jq '.[] | select(.draft == true) | {id, tag_name}'
+```
+
+Identify the single draft with exactly the approved tag, record its real numeric
+`id`, and inspect it using `GET /repos/vitral-ai/vitral-host-agent-releases/releases/{id}`.
+Now prepare, review and merge the final authorization including this `release_id`
+and final five hashes/sizes. Never invent a release ID or dummy draft to fill the
+schema. The verifier uses this exact numeric ID before and after publishing and
+on retries; it never uses the published-release-by-tag endpoint to retrieve a
+draft. A returned ID or tag mismatch fails before downloads or writes.
+
 Immediately before dispatch, using existing `gh` **outside CI**, require
 `enabled: true` from:
 
@@ -88,8 +105,8 @@ Do not bypass required source review/checks to add an authorization or workflow.
 
 ## Verification, publishing and limits
 
-The verifier checks public repository ID/name, exact lightweight public tag
-target, fixed release metadata, five unique uploaded asset IDs/names/sizes/API
+The verifier checks public repository ID/name, approved real release ID, exact
+lightweight public tag target, fixed release metadata, five unique uploaded asset IDs/names/sizes/API
 digests and all downloaded SHA256s. It verifies the four-line checksum manifest
 and both private producer signatures. It rereads release/tag/asset metadata
 immediately before its only possible write: `PATCH` that release with
@@ -126,8 +143,8 @@ producer/output/authorization through review, then restage under the coordinator
 direction. This workflow performs no destructive cleanup.
 
 `seal_outcome_unknown_readback_required` means the PATCH may have succeeded.
-Read the release by tag and inspect its immutable/draft state before any further
-action. An ordinary rerun only verifies an already immutable release. False,
+Read the release by its authorized numeric ID and inspect its immutable/draft
+state before any further action. An ordinary rerun only verifies an already immutable release. False,
 missing or unknown immutability, changed bytes, identity failure, or absent
 readback never counts as success. Preserve the nonsecret run/release IDs and
 verification result for the coordinator. A published mismatch requires a new

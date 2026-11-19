@@ -69,11 +69,12 @@ def authorization(data, tag):
     require(type(tag) is str and len(tag) <= 160 and
             re.fullmatch("host-agent-v" + SEMVER, tag), "invalid_tag")
     a = parse_json(data)
-    fields(a, ("schema_version", "repository", "repository_id", "tag", "public_target_sha",
+    fields(a, ("schema_version", "repository", "repository_id", "release_id", "tag", "public_target_sha",
                "source_sha", "qualified_receipt_sha256", "assets"))
     require(type(a["schema_version"]) is int and a["schema_version"] == 1, "invalid_schema")
     require(a["repository"] == REPO and type(a["repository_id"]) is int and
             a["repository_id"] == REPO_ID and a["tag"] == tag, "authorization_target_mismatch")
+    positive_id(a["release_id"])
     for key, length in (("source_sha", 40), ("public_target_sha", 40),
                         ("qualified_receipt_sha256", 64)):
         require(type(a[key]) is str and re.fullmatch("[0-9a-f]{%d}" % length, a[key]),
@@ -156,8 +157,11 @@ def snapshot(api, a):
     require(ref.get("ref") == "refs/tags/" + a["tag"] and
             ref.get("object", {}).get("type") == "commit" and
             ref["object"].get("sha") == a["public_target_sha"], "public_tag_target_mismatch")
-    r = api.api("/releases/tags/" + tag)
+    # The by-tag endpoint is documented for published releases, not drafts.
+    # Bind one real staged release ID in reviewed authorization for all states.
+    r = api.api(f"/releases/{a['release_id']}")
     positive_id(r.get("id"))
+    require(r["id"] == a["release_id"], "release_identity_mismatch")
     require(r.get("tag_name") == a["tag"] and r.get("name") == a["tag"] and
             r.get("body") == "Verified host-agent binaries for " + a["tag"] + "." and
             r.get("prerelease") is ("-" in a["tag"][12:].split("+")[0]), "release_metadata_mismatch")
