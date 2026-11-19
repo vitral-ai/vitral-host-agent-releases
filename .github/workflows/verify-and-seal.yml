@@ -1,0 +1,64 @@
+name: Verify and seal approved host-agent release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact approved host-agent-v SemVer tag
+        required: true
+        type: string
+      immutable_preflight_utc:
+        description: Operator confirmed immutable enabled immediately before dispatch (YYYY-MM-DDTHH:MM:SSZ)
+        required: true
+        type: string
+      exclusive_staging_owner:
+        description: I own this draft exclusively until immutable readback completes
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tests -v
+
+  seal:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository_id == '1463746626' &&
+      github.repository == 'vitral-ai/vitral-host-agent-releases' &&
+      github.ref == 'refs/heads/main' && inputs.exclusive_staging_owner
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: seal-${{ inputs.tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify approved private-producer artifacts and seal once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          IMMUTABLE_PREFLIGHT_UTC: ${{ inputs.immutable_preflight_utc }}
+        run: >-
+          python3 scripts/verify_and_seal.py
+          --tag "$RELEASE_TAG"
+          --immutable-preflight-utc "$IMMUTABLE_PREFLIGHT_UTC"
+          --exclusive-staging-owner confirmed
