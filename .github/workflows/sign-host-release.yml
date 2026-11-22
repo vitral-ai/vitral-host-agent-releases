@@ -1,0 +1,38 @@
+name: Sign the Vitral host client draft
+
+on:
+  push:
+    tags:
+      - 'host-agent-publish-v*'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: host-client-signing-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    if: >-
+      github.repository_id == '1463746626' &&
+      github.repository == 'vitral-ai/vitral-host-agent-releases' &&
+      github.ref_type == 'tag' &&
+      startsWith(github.ref, 'refs/tags/host-agent-publish-v') &&
+      github.workflow_ref == format('vitral-ai/vitral-host-agent-releases/.github/workflows/sign-host-release.yml@{0}', github.ref) &&
+      github.workflow_sha == github.sha
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify the draft, sign its checksums and attach the bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VITRAL_PRODUCTION_SIGNING_ENABLED: ${{ vars.VITRAL_PRODUCTION_SIGNING_ENABLED }}
+        run: python3 -B scripts/sign_host_release.py
