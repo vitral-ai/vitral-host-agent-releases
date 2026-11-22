@@ -1,16 +1,29 @@
-# Vitral host-agent releases
+# Vitral host client releases
 
-Signed Linux host-agent executables and verification bundles are published here
-as immutable releases using tags `host-agent-v<semver>`.
+Vitral host clients use tags `host-agent-publish-v<semver>`. Each release
+includes Linux amd64 and arm64 binaries, `SHA256SUMS`, and
+`SHA256SUMS.sigstore.json`.
 
-Each architecture has a `vitral-host-agent-linux-<arch>` executable, its
-`.sigstore.json` verification bundle, and a published SHA-256 commitment.
-Consumers verify the pinned digest and the exact keyless signing identity:
+Download `install.sh` from the release repository at the tag you want. With
+Cosign v3 installed, run:
 
+```bash
+./install.sh --tag host-agent-publish-v<VERSION>
+vitral-host version
 ```
-https://github.com/vitral-ai/vitralai/.github/workflows/host-agent-release.yml@refs/tags/host-agent-v<semver>
+
+The installer verifies the signed checksums before installing the executable
+in `~/.local/bin`. Run `vitral-host install` to enroll and start the host
+client. For manual verification, use the exact release tag:
+
+```bash
+cosign verify-blob --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/vitral-ai/vitral-host-agent-releases/.github/workflows/sign-host-release.yml@refs/tags/$tag" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
+sha256sum --check --strict SHA256SUMS
 ```
 
-OIDC issuer: `https://token.actions.githubusercontent.com`.
-
-A release is published after its producer and consumer qualification gates pass.
+The signing workflow attaches the bundle to a draft. Publication requires a
+separate operator decision. The [draft signing procedure](docs/client-draft-signing.md)
+covers staging tests and updated release verification. Earlier
+`host-agent-v<semver>` releases use their historical verification procedure.
