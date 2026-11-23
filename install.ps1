@@ -90,7 +90,7 @@ try {
     $destination = Join-Path $directory 'vitral-host.exe'
     $installTemp = Join-Path $directory ".vitral-host-$([guid]::NewGuid()).tmp"
     [IO.File]::Copy($file, $installTemp)
-    if ([IO.File]::Exists($destination)) { [IO.File]::Replace($installTemp, $destination, $null) }
+    if ([IO.File]::Exists($destination)) { [IO.File]::Replace($installTemp, $destination, [NullString]::Value) }
     else { [IO.File]::Move($installTemp, $destination) }
     Write-Output "Verified and installed $destination"
 }
