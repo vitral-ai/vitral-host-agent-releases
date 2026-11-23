@@ -14,7 +14,7 @@ import sign_host_release as signer
 
 
 class SigningTests(unittest.TestCase):
-    tag = "host-agent-publish-v0.0.0-dryrun.1"
+    tag = "host-agent-publish-v0.0.0-dryrun.3"
     sha = "b" * 40
 
     def event(self, tag):
@@ -67,7 +67,7 @@ class SigningTests(unittest.TestCase):
                                          f"https://uploads.github.com/{signer.BASE}/releases/23/assets?name={signer.BUNDLE}"))
                         data = Path(arguments[-1]).read_bytes()
                         assets[signer.BUNDLE] = {
-                            "id": 4, "name": signer.BUNDLE, "state": "uploaded", "size": len(data),
+                            "id": len(assets) + 1, "name": signer.BUNDLE, "state": "uploaded", "size": len(data),
                             "digest": "sha256:" + hashlib.sha256(data).hexdigest()}
                         flags["uploaded"] = True
                         return {}
@@ -143,6 +143,32 @@ done
         env = {**os.environ, "PATH": str(verifier_dir) + os.pathsep + os.environ["PATH"]}
         command = [str(ROOT / "install.sh"), "--tag", self.tag, "--assets-dir", str(self.assets),
                    "--bin-dir", str(destination)]
+        platform = verifier_dir / "uname"
+        platform.write_text("#!/bin/sh\ncase \"$1\" in -s) echo \"$TEST_OS\";; -m) echo \"$TEST_CPU\";; esac\n")
+        platform.chmod(0o755)
+        sysctl = verifier_dir / "sysctl"
+        sysctl.write_text("#!/bin/sh\nprintf '%s\\n' \"$TEST_ARM64\"\n")
+        sysctl.chmod(0o755)
+        if sys.platform != "darwin":
+            shasum = verifier_dir / "shasum"
+            shasum.write_text('#!/bin/sh\n[ "$*" = "-a 256" ] || exit 1\nexec sha256sum\n')
+            shasum.chmod(0o755)
+            move = verifier_dir / "mv"
+            move.write_text('#!/bin/sh\nshift\nexec /usr/bin/mv -fT "$@"\n')
+            move.chmod(0o755)
+        for os_name, machine, arm64, filename in (
+            ("Linux", "x86_64", "0", "vitral-host-linux-amd64"),
+            ("Linux", "aarch64", "1", "vitral-host-linux-arm64"),
+            ("Darwin", "x86_64", "0", "vitral-host-darwin-amd64"),
+            ("Darwin", "arm64", "1", "vitral-host-darwin-arm64"),
+            ("Darwin", "x86_64", "1", "vitral-host-darwin-arm64"),
+        ):
+            with self.subTest(os_name=os_name, machine=machine, arm64=arm64):
+                env.update(TEST_OS=os_name, TEST_CPU=machine, TEST_ARM64=arm64)
+                result = subprocess.run(command, env=env, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(binary.read_text(), filename)
+        env.update(TEST_OS="Linux", TEST_CPU="x86_64", TEST_ARM64="0")
         result = subprocess.run(command, env=env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(os.access(binary, os.X_OK))
@@ -154,6 +180,11 @@ done
         (self.assets / original.decode()).write_bytes(b"tampered")
         result = subprocess.run(command, env=env, text=True, capture_output=True)
         self.assertIn("binary checksum verification failed", result.stderr)
+        manifest = self.assets / signer.SUMS
+        full = manifest.read_bytes()
+        manifest.write_bytes(b"".join(line for line in full.splitlines(keepends=True) if b"-linux-" in line))
+        result = subprocess.run(command, env=env, text=True, capture_output=True)
+        self.assertIn("Incomplete signed checksum manifest", result.stderr)
         bundle.unlink()
         result = subprocess.run(command, env=env, text=True, capture_output=True)
         self.assertIn("Missing release asset " + signer.BUNDLE, result.stderr)

@@ -1,10 +1,10 @@
 # Vitral host client draft signing
 
-The publisher stages exactly the two client binaries and `SHA256SUMS` as a
-draft. Once all three assets are uploaded, push the matching tag on a reviewed
+The publisher stages exactly the six client binaries and `SHA256SUMS` as a
+draft. Once all seven assets are uploaded, push the matching tag on a reviewed
 commit of this distribution repository that contains the signer. A rerun may be
 dispatched against the tag once the workflow is on the default branch.
-The workflow checks both binaries against the manifest, signs the manifest
+The workflow checks all six binaries against the manifest, signs the manifest
 with the public tag's GitHub Actions identity, verifies the bundle and attaches
 it to the draft.
 
@@ -22,7 +22,7 @@ git push origin "refs/tags/$tag"
 gh run list --workflow sign-host-release.yml --branch "$tag"
 ```
 
-Use the signing job's draft release ID to download the four assets with
+Use the signing job's draft release ID to download the eight assets with
 authenticated GitHub access. On a clean Linux VM with Cosign v3 installed, run:
 
 ```bash

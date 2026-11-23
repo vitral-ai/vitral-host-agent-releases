@@ -17,7 +17,14 @@ PRE = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
 TAG = re.compile(rf"{PREFIX}(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
                  rf"(?:-{PRE}(?:\.{PRE})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
 ISSUER = "https://token.actions.githubusercontent.com"
-BINARIES = ("vitral-host-linux-amd64", "vitral-host-linux-arm64")
+BINARIES = (
+    "vitral-host-darwin-amd64",
+    "vitral-host-darwin-arm64",
+    "vitral-host-linux-amd64",
+    "vitral-host-linux-arm64",
+    "vitral-host-windows-amd64.exe",
+    "vitral-host-windows-arm64.exe",
+)
 SUMS, BUNDLE = "SHA256SUMS", "SHA256SUMS.sigstore.json"
 LIMITS = {**dict.fromkeys(BINARIES, 128 << 20), SUMS: 8192, BUNDLE: 1 << 20}
 COSIGN_VERSION = "3.1.4"
