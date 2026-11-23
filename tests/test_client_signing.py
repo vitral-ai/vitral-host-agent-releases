@@ -110,6 +110,7 @@ class SigningTests(unittest.TestCase):
         self.assertNotIn("ACTIONS_ID_TOKEN_REQUEST_TOKEN", calls[2][1])
 
     def test_installer_checks_exact_identity_and_refuses_bad_or_missing_assets(self):
+        installer_tag = "host-agent-publish-v0.2.0"
         verifier_dir = self.root / "tools"
         verifier_dir.mkdir()
         fake = verifier_dir / "cosign"
@@ -135,13 +136,13 @@ done
 [[ $(cat "$bundle") == "$identity" ]]
 """)
         fake.chmod(0o755)
-        expected_identity = f"https://github.com/{signer.REPO}/{signer.WORKFLOW}@refs/tags/{self.tag}"
+        expected_identity = f"https://github.com/{signer.REPO}/{signer.WORKFLOW}@refs/tags/{installer_tag}"
         bundle = self.assets / signer.BUNDLE
         bundle.write_text(expected_identity)
         destination = self.root / "bin"
         binary = destination / "vitral-host"
         env = {**os.environ, "PATH": str(verifier_dir) + os.pathsep + os.environ["PATH"]}
-        command = [str(ROOT / "install.sh"), "--tag", self.tag, "--assets-dir", str(self.assets),
+        command = [str(ROOT / "install.sh"), "--tag", installer_tag, "--assets-dir", str(self.assets),
                    "--bin-dir", str(destination)]
         platform = verifier_dir / "uname"
         platform.write_text("#!/bin/sh\ncase \"$1\" in -s) echo \"$TEST_OS\";; -m) echo \"$TEST_CPU\";; esac\n")
