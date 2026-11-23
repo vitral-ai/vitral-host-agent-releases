@@ -8,7 +8,7 @@ your PATH. All downloads are public.
 
 ```bash
 tag=host-agent-publish-v0.2.0
-curl -fsSLo install.sh "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/$tag/install.sh"
+curl -fsSLo install.sh "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/main/install.sh"
 bash install.sh --tag "$tag"
 "$HOME/.local/bin/vitral-host" version
 "$HOME/.local/bin/vitral-host" install

@@ -38,7 +38,7 @@ binary="vitral-host-$platform-$arch"
 work=$(mktemp -d)
 install_tmp=
 trap 'rm -rf -- "$work"; if [[ -n "$install_tmp" ]]; then rm -f -- "$install_tmp"; fi' EXIT
-verify_options=()
+verify_options=(--certificate-oidc-issuer https://token.actions.githubusercontent.com)
 if [[ $tag =~ ^host-agent-publish-v0\.0\.0-dryrun\.[0-9]+$ ]]; then
     [[ -n $assets ]] || fail "Pass authenticated draft assets with --assets-dir for a dry run."
     export TUF_ROOT="$work/tuf"
@@ -68,7 +68,7 @@ fetch SHA256SUMS 8192
 fetch SHA256SUMS.sigstore.json 1048576
 identity="https://github.com/vitral-ai/vitral-host-agent-releases/.github/workflows/sign-host-release.yml@refs/tags/$tag"
 cosign verify-blob "${verify_options[@]}" --bundle "$work/SHA256SUMS.sigstore.json" \
-    --certificate-identity "$identity" --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity "$identity" \
     "$work/SHA256SUMS" || fail "Vitral release signature verification failed."
 
 line_pattern='^([0-9a-f]{64})  (vitral-host-((darwin|linux)-(amd64|arm64)|windows-(amd64|arm64)\.exe))$'
