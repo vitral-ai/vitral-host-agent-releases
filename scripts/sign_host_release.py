@@ -1,5 +1,6 @@
-"""Verify a distributed client draft and attach its keyless bundle."""
+"""Verify a distribution draft and attach its keyless bundle."""
 
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -12,10 +13,9 @@ REPO = "vitral-ai/vitral-host-agent-releases"
 REPO_ID = "1463746626"
 WORKFLOW = ".github/workflows/sign-host-release.yml"
 PREFIX = "host-agent-publish-v"
-DRYRUN = re.compile(r"host-agent-publish-v0\.0\.0-dryrun\.[0-9]+")
 PRE = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
-TAG = re.compile(rf"{PREFIX}(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
-                 rf"(?:-{PRE}(?:\.{PRE})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
+SEMVER = (r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+          rf"(?:-{PRE}(?:\.{PRE})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
 ISSUER = "https://token.actions.githubusercontent.com"
 BINARIES = (
     "vitral-host-darwin-amd64",
@@ -26,10 +26,22 @@ BINARIES = (
     "vitral-host-windows-arm64.exe",
 )
 SUMS, BUNDLE = "SHA256SUMS", "SHA256SUMS.sigstore.json"
-LIMITS = {**dict.fromkeys(BINARIES, 128 << 20), SUMS: 8192, BUNDLE: 1 << 20}
+METADATA_LIMITS = {SUMS: 8192, BUNDLE: 1 << 20}
+PAYLOAD_LIMIT = 128 << 20
 COSIGN_VERSION = "3.1.4"
 COSIGN_SHA256 = "424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa"
 BASE = f"repos/{REPO}"
+
+
+@dataclass(frozen=True)
+class ReleaseProfile:
+    prefix: str
+    workflow: str
+    payloads: tuple[str, ...]
+    production_gate: str
+
+
+HOST_PROFILE = ReleaseProfile(PREFIX, WORKFLOW, BINARIES, "VITRAL_PRODUCTION_SIGNING_ENABLED")
 
 
 def require(value, reason):
@@ -37,19 +49,20 @@ def require(value, reason):
         raise ValueError(reason)
 
 
-def context(env):
+def context(env, profile=HOST_PROFILE):
     ref = env.get("GITHUB_REF", "")
     tag = ref.removeprefix("refs/tags/")
+    version = tag.removeprefix(profile.prefix)
     require(env.get("GITHUB_REPOSITORY") == REPO and env.get("GITHUB_REPOSITORY_ID") == REPO_ID
             and env.get("GITHUB_EVENT_NAME") in {"push", "workflow_dispatch"}
             and env.get("GITHUB_REF_TYPE") == "tag" and ref.startswith("refs/tags/")
-            and len(tag) <= len(PREFIX) + 128 and TAG.fullmatch(tag)
-            and env.get("GITHUB_WORKFLOW_REF") == f"{REPO}/{WORKFLOW}@{ref}"
+            and tag.startswith(profile.prefix) and len(version) <= 128 and re.fullmatch(SEMVER, version)
+            and env.get("GITHUB_WORKFLOW_REF") == f"{REPO}/{profile.workflow}@{ref}"
             and env.get("GITHUB_WORKFLOW_SHA") == env.get("GITHUB_SHA")
             and re.fullmatch("[0-9a-f]{40}", env.get("GITHUB_SHA", "")), "public signing context is invalid")
-    if DRYRUN.fullmatch(tag):
+    if re.fullmatch(r"0\.0\.0-dryrun\.[0-9]+", version):
         return tag, True
-    require(env.get("VITRAL_PRODUCTION_SIGNING_ENABLED") == "true", "production signing requires explicit approval")
+    require(env.get(profile.production_gate) == "true", "production signing requires explicit approval")
     return tag, False
 
 
@@ -71,15 +84,15 @@ def get_draft(tag, api=gh):
     return release
 
 
-def asset_records(release, *, allow_bundle=True):
+def asset_records(release, *, allow_bundle=True, profile=HOST_PROFILE):
     assets = release["assets"]
     result = {asset["name"]: asset for asset in assets}
-    allowed = {SUMS, *BINARIES}
+    allowed = {SUMS, *profile.payloads}
     valid_sets = (allowed, allowed | {BUNDLE}) if allow_bundle else (allowed,)
     require(len(result) == len(assets) and set(result) in valid_sets, "unexpected draft asset set")
     for name, asset in result.items():
         require(type(asset["id"]) is int and asset["state"] == "uploaded"
-                and type(asset["size"]) is int and 0 < asset["size"] <= LIMITS[name]
+                and type(asset["size"]) is int and 0 < asset["size"] <= METADATA_LIMITS.get(name, PAYLOAD_LIMIT)
                 and re.fullmatch(r"sha256:[0-9a-f]{64}", asset.get("digest", "")), "invalid draft asset metadata")
     return {name: {key: asset[key] for key in ("id", "size", "digest")} for name, asset in result.items()}
 
@@ -89,14 +102,14 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def verify_assets(assets, output, api=gh):
+def verify_assets(assets, output, api=gh, *, profile=HOST_PROFILE):
     for name, asset in assets.items():
         path = output / name
         api(f"{BASE}/releases/assets/{asset['id']}", "-H", "Accept: application/octet-stream", output=path)
         require(path.stat().st_size == asset["size"] and "sha256:" + digest(path) == asset["digest"],
                 f"downloaded bytes differ for {name}")
-    expected = "".join(f"{digest(output / name)}  {name}\n" for name in BINARIES).encode()
-    require((output / SUMS).read_bytes() == expected, "checksum manifest differs from the draft binaries")
+    expected = "".join(f"{digest(output / name)}  {name}\n" for name in profile.payloads).encode()
+    require((output / SUMS).read_bytes() == expected, "checksum manifest differs from the draft payloads")
 
 
 def obtain_cosign(path, run=subprocess.run):
@@ -108,7 +121,7 @@ def obtain_cosign(path, run=subprocess.run):
     path.chmod(0o700)
 
 
-def sign_and_verify(path, tag, staging, output, *, run=subprocess.run):
+def sign_and_verify(path, tag, staging, output, *, run=subprocess.run, profile=HOST_PROFILE):
     env = {key: os.environ[key] for key in ("PATH", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL")
            if key in os.environ}
     require(all(env.get(key) for key in ("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL")),
@@ -130,30 +143,34 @@ def sign_and_verify(path, tag, staging, output, *, run=subprocess.run):
         run([str(path), "sign-blob", "--yes", *sign_opts, "--bundle", str(output / BUNDLE), str(output / SUMS)],
             env=env, check=True, timeout=180)
     run([str(path), "verify-blob", *verify_opts, "--bundle", str(output / BUNDLE),
-         "--certificate-identity", f"https://github.com/{REPO}/{WORKFLOW}@refs/tags/{tag}",
+         "--certificate-identity", f"https://github.com/{REPO}/{profile.workflow}@refs/tags/{tag}",
          "--certificate-oidc-issuer", ISSUER, str(output / SUMS)], env={"PATH": env["PATH"], "TUF_ROOT": env["TUF_ROOT"]},
         check=True, timeout=180)
 
 
-def sign_draft(env, output, *, api=gh, acquire=obtain_cosign, sign=sign_and_verify):
-    tag, staging = context(env)
+def sign_draft(env, output, *, api=gh, acquire=obtain_cosign, sign=None, profile=HOST_PROFILE):
+    tag, staging = context(env, profile)
     draft = get_draft(tag, api)
-    assets = asset_records(draft)
-    verify_assets(assets, output, api)
+    assets = asset_records(draft, profile=profile)
+    verify_assets(assets, output, api, profile=profile)
     cosign = output / "cosign"
     acquire(cosign)
-    sign(cosign, tag, staging, output)
+    if sign is None:
+        sign_and_verify(cosign, tag, staging, output, profile=profile)
+    else:
+        sign(cosign, tag, staging, output)
     # Recheck before upload in case the draft was modified during signing.
     current = get_draft(tag, api)
-    require(current["id"] == draft["id"] and asset_records(current) == assets, "draft changed during signing")
+    require(current["id"] == draft["id"] and asset_records(current, profile=profile) == assets,
+            "draft changed during signing")
     if BUNDLE not in assets:
         bundle = output / BUNDLE
         size, bundle_digest = bundle.stat().st_size, "sha256:" + digest(bundle)
-        require(0 < size <= LIMITS[BUNDLE], "invalid generated bundle size")
+        require(0 < size <= METADATA_LIMITS[BUNDLE], "invalid generated bundle size")
         api("--method", "POST", f"https://uploads.github.com/{BASE}/releases/{draft['id']}/assets?name={BUNDLE}",
             "-H", "Content-Type: application/octet-stream", "--input", str(bundle))
         current = get_draft(tag, api)
-        after = asset_records(current)
+        after = asset_records(current, profile=profile)
         require(current["id"] == draft["id"] and (after[BUNDLE]["size"], after[BUNDLE]["digest"]) == (size, bundle_digest)
                 and {name: asset for name, asset in after.items() if name != BUNDLE} == assets,
                 "signed draft readback differs")
