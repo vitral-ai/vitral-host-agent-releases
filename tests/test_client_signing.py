@@ -55,8 +55,15 @@ class SigningTests(unittest.TestCase):
             signer.context(env)
         with self.assertRaisesRegex(ValueError, "context is invalid"):
             signer.context({**env, "GITHUB_WORKFLOW_SHA": "c" * 40}, profile)
+        for version in ("0.4.0-rc.1", "0.4.0+build", "0.0.0-dryrun.01"):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "context is invalid"):
+                signer.context({**self.event(f"connect-vm-publish-v{version}", profile),
+                                profile.production_gate: "true"}, profile)
         draft_tag = "connect-vm-publish-v0.0.0-dryrun.1"
         self.assertEqual(signer.context(self.event(draft_tag, profile), profile), (draft_tag, True))
+        host_tag = "host-agent-publish-v0.4.0-rc.1+build"
+        self.assertEqual(signer.context({**self.event(host_tag), signer.HOST_PROFILE.production_gate: "true"}),
+                         (host_tag, False))
 
     def test_connect_vm_draft_requires_two_bounded_archives_and_exact_manifest(self):
         profile = CONNECT_VM_PROFILE

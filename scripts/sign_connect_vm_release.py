@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from sign_host_release import ReleaseProfile, sign_draft
+from sign_host_release import ReleaseProfile, STABLE_VERSION, sign_draft
 
 
 CONNECT_VM_PROFILE = ReleaseProfile(
@@ -13,6 +13,7 @@ CONNECT_VM_PROFILE = ReleaseProfile(
     ".github/workflows/sign-connect-vm-release.yml",
     ("vitral-connect-linux-amd64.tar", "vitral-connect-linux-arm64.tar"),
     "VITRAL_CONNECT_VM_PRODUCTION_SIGNING_ENABLED",
+    production_version=STABLE_VERSION,
 )
 
 

@@ -1,7 +1,7 @@
 # Connect VM draft signing
 
-Connect VM bundles use a separate public release tag,
-`connect-vm-publish-v<semver>`, in `vitral-ai/vitral-host-agent-releases`.
+Connect VM bundles use a separate public production release tag,
+`connect-vm-publish-vX.Y.Z`, in `vitral-ai/vitral-host-agent-releases`.
 Stage exactly these three files in one draft with that tag.
 
 - `vitral-connect-linux-amd64.tar`
@@ -11,9 +11,12 @@ Stage exactly these three files in one draft with that tag.
 Each archive must have a nonzero size no greater than 134,217,728 bytes.
 The manifest has exactly two lines in the archive order above, each with a
 lowercase SHA-256, two spaces, the filename, and a newline. Review the archive
-provenance and draft digests before triggering signing. Fetch the separately
-reviewed renderer from the exact public release tag before using it to verify
-the signed archives.
+provenance and draft digests before triggering signing. Use the reviewed
+[cloud-init renderer](https://github.com/vitral-ai/vitral_infrastructure/blob/9ee432a4ef52aa450ea62c734bd8f0439b35c5f7/provisioning/vitral-connect/cloud_init.py)
+from `vitral-ai/vitral_infrastructure` at commit
+`9ee432a4ef52aa450ea62c734bd8f0439b35c5f7` in
+`provisioning/vitral-connect/cloud_init.py` to verify the signed archives on
+the guest.
 
 Push the matching tag at the reviewed public distribution commit. The
 `sign-connect-vm-release.yml` job checks the exact repository, tag, workflow,

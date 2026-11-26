@@ -14,8 +14,8 @@ REPO_ID = "1463746626"
 WORKFLOW = ".github/workflows/sign-host-release.yml"
 PREFIX = "host-agent-publish-v"
 PRE = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
-SEMVER = (r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
-          rf"(?:-{PRE}(?:\.{PRE})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
+STABLE_VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+SEMVER = rf"{STABLE_VERSION}(?:-{PRE}(?:\.{PRE})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
 ISSUER = "https://token.actions.githubusercontent.com"
 BINARIES = (
     "vitral-host-darwin-amd64",
@@ -39,6 +39,7 @@ class ReleaseProfile:
     workflow: str
     payloads: tuple[str, ...]
     production_gate: str
+    production_version: str = SEMVER
 
 
 HOST_PROFILE = ReleaseProfile(PREFIX, WORKFLOW, BINARIES, "VITRAL_PRODUCTION_SIGNING_ENABLED")
@@ -53,14 +54,16 @@ def context(env, profile=HOST_PROFILE):
     ref = env.get("GITHUB_REF", "")
     tag = ref.removeprefix("refs/tags/")
     version = tag.removeprefix(profile.prefix)
+    staging = re.fullmatch(r"0\.0\.0-dryrun\.(?:0|[1-9][0-9]*)", version) is not None
     require(env.get("GITHUB_REPOSITORY") == REPO and env.get("GITHUB_REPOSITORY_ID") == REPO_ID
             and env.get("GITHUB_EVENT_NAME") in {"push", "workflow_dispatch"}
             and env.get("GITHUB_REF_TYPE") == "tag" and ref.startswith("refs/tags/")
-            and tag.startswith(profile.prefix) and len(version) <= 128 and re.fullmatch(SEMVER, version)
+            and tag.startswith(profile.prefix) and len(version) <= 128
+            and (staging or re.fullmatch(profile.production_version, version))
             and env.get("GITHUB_WORKFLOW_REF") == f"{REPO}/{profile.workflow}@{ref}"
             and env.get("GITHUB_WORKFLOW_SHA") == env.get("GITHUB_SHA")
             and re.fullmatch("[0-9a-f]{40}", env.get("GITHUB_SHA", "")), "public signing context is invalid")
-    if re.fullmatch(r"0\.0\.0-dryrun\.[0-9]+", version):
+    if staging:
         return tag, True
     require(env.get(profile.production_gate) == "true", "production signing requires explicit approval")
     return tag, False
