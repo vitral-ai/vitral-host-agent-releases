@@ -11,18 +11,19 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import sign_host_release as signer
+from sign_connect_vm_release import CONNECT_VM_PROFILE
 
 
 class SigningTests(unittest.TestCase):
     tag = "host-agent-publish-v0.0.0-dryrun.3"
     sha = "b" * 40
 
-    def event(self, tag):
+    def event(self, tag, profile=signer.HOST_PROFILE):
         ref = f"refs/tags/{tag}"
         return {"GITHUB_REPOSITORY": signer.REPO, "GITHUB_REPOSITORY_ID": signer.REPO_ID,
                 "GITHUB_EVENT_NAME": "push", "GITHUB_REF_TYPE": "tag", "GITHUB_REF": ref,
                 "GITHUB_SHA": self.sha, "GITHUB_WORKFLOW_SHA": self.sha,
-                "GITHUB_WORKFLOW_REF": f"{signer.REPO}/{signer.WORKFLOW}@{ref}"}
+                "GITHUB_WORKFLOW_REF": f"{signer.REPO}/{profile.workflow}@{ref}"}
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -42,15 +43,99 @@ class SigningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "context is invalid"):
             signer.context({**self.event(self.tag), "GITHUB_WORKFLOW_REF": "another workflow"})
 
+    def test_connect_vm_context_keeps_signing_gates_and_identities_separate(self):
+        profile = CONNECT_VM_PROFILE
+        tag = "connect-vm-publish-v1.2.3"
+        env = self.event(tag, profile)
+        with self.assertRaisesRegex(ValueError, "production signing requires"):
+            signer.context({**env, signer.HOST_PROFILE.production_gate: "true"}, profile)
+        env[profile.production_gate] = "true"
+        self.assertEqual(signer.context(env, profile), (tag, False))
+        with self.assertRaisesRegex(ValueError, "context is invalid"):
+            signer.context(env)
+        with self.assertRaisesRegex(ValueError, "context is invalid"):
+            signer.context({**env, "GITHUB_WORKFLOW_SHA": "c" * 40}, profile)
+        for version in ("0.4.0-rc.1", "0.4.0+build", "0.0.0-dryrun.01"):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "context is invalid"):
+                signer.context({**self.event(f"connect-vm-publish-v{version}", profile),
+                                profile.production_gate: "true"}, profile)
+        draft_tag = "connect-vm-publish-v0.0.0-dryrun.1"
+        self.assertEqual(signer.context(self.event(draft_tag, profile), profile), (draft_tag, True))
+        host_tag = "host-agent-publish-v0.4.0-rc.1+build"
+        self.assertEqual(signer.context({**self.event(host_tag), signer.HOST_PROFILE.production_gate: "true"}),
+                         (host_tag, False))
+
+    def test_connect_vm_draft_requires_two_bounded_archives_and_exact_manifest(self):
+        profile = CONNECT_VM_PROFILE
+        names = (*profile.payloads, signer.SUMS)
+        assets = [
+            {"id": i, "name": name, "size": signer.PAYLOAD_LIMIT if name in profile.payloads else 1,
+             "state": "uploaded", "digest": "sha256:" + "a" * 64}
+            for i, name in enumerate(names, 1)
+        ]
+        self.assertEqual(set(signer.asset_records({"assets": assets}, profile=profile)), set(names))
+        for size in (0, signer.PAYLOAD_LIMIT + 1):
+            with self.subTest(size=size), self.assertRaisesRegex(ValueError, "invalid draft asset metadata"):
+                signer.asset_records({"assets": [{**assets[0], "size": size}, *assets[1:]]}, profile=profile)
+        for invalid in (assets[1:], [*assets, {**assets[0], "name": "render.py", "id": 4}]):
+            with self.assertRaisesRegex(ValueError, "unexpected draft asset set"):
+                signer.asset_records({"assets": invalid}, profile=profile)
+
+        payload = {name: name.encode() for name in profile.payloads}
+        manifest = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, data in payload.items())
+        for correct in (True, False):
+            with self.subTest(correct=correct):
+                staged = self.root / str(correct)
+                staged.mkdir()
+                blobs = {**payload, signer.SUMS: (manifest if correct else manifest.replace(".tar", ".tar.gz")).encode()}
+                records = {name: {"id": i, "size": len(data), "digest": "sha256:" + hashlib.sha256(data).hexdigest()}
+                           for i, (name, data) in enumerate(blobs.items(), 1)}
+
+                def api(asset, *args, output=None):
+                    name = next(name for name, record in records.items() if asset.endswith(f"/{record['id']}"))
+                    output.write_bytes(blobs[name])
+
+                if correct:
+                    signer.verify_assets(records, staged, api, profile=profile)
+                else:
+                    with self.assertRaisesRegex(ValueError, "checksum manifest differs"):
+                        signer.verify_assets(records, staged, api, profile=profile)
+
+    def test_connect_vm_cosign_pins_its_own_exact_tag_identity(self):
+        profile = CONNECT_VM_PROFILE
+        tag = "connect-vm-publish-v1.2.3"
+        calls = []
+        with patch.dict(os.environ, {"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "token", "ACTIONS_ID_TOKEN_REQUEST_URL": "url"}):
+            signer.sign_and_verify(self.root / "cosign", tag, False, self.assets,
+                                   run=lambda command, **_: calls.append(command), profile=profile)
+        self.assertEqual([command[1] for command in calls], ["sign-blob", "verify-blob"])
+        self.assertIn(f"https://github.com/{signer.REPO}/{profile.workflow}@refs/tags/{tag}", calls[1])
+        self.assertIn(signer.ISSUER, calls[1])
+
     def test_verified_draft_bundle_is_uploaded_and_tampered_draft_is_rejected(self):
+        for profile, tag in (
+            (signer.HOST_PROFILE, self.tag),
+            (CONNECT_VM_PROFILE, "connect-vm-publish-v0.0.0-dryrun.3"),
+        ):
+            with self.subTest(profile=profile.prefix):
+                self.check_draft_signing(profile, tag)
+
+    def check_draft_signing(self, profile, tag):
+        source_dir = self.root / profile.prefix
+        source_dir.mkdir()
+        for filename in profile.payloads:
+            (source_dir / filename).write_text(filename)
+        (source_dir / signer.SUMS).write_text("".join(
+            f"{signer.digest(source_dir / filename)}  {filename}\n" for filename in profile.payloads))
+
         for tampered in (True, False):
             with self.subTest(tampered=tampered):
-                output = self.root / str(tampered)
+                output = self.root / (profile.prefix + str(tampered))
                 output.mkdir()
                 assets = {
                     path.name: {"id": index, "name": path.name, "state": "uploaded",
                                 "size": path.stat().st_size, "digest": "sha256:" + signer.digest(path)}
-                    for index, path in enumerate(sorted(self.assets.iterdir()), 1)
+                    for index, path in enumerate(sorted(source_dir.iterdir()), 1)
                 }
                 flags = {"signed": False, "uploaded": False}
                 reads = 0
@@ -61,7 +146,7 @@ class SigningTests(unittest.TestCase):
                     if path == "--paginate":
                         reads += 1
                         listed = [{**asset, "download_count": reads} for asset in assets.values()]
-                        return [[{"tag_name": self.tag, "draft": True, "id": 23, "assets": listed}]]
+                        return [[{"tag_name": tag, "draft": True, "id": 23, "assets": listed}]]
                     if path == "--method":
                         self.assertEqual(arguments[:3], ("--method", "POST",
                                          f"https://uploads.github.com/{signer.BASE}/releases/23/assets?name={signer.BUNDLE}"))
@@ -72,20 +157,21 @@ class SigningTests(unittest.TestCase):
                         flags["uploaded"] = True
                         return {}
                     asset = next(item for item in assets.values() if path.endswith(f"/{item['id']}"))
-                    source = (self.assets / asset["name"]).read_bytes()
-                    output.write_bytes(b"X" + source[1:] if tampered and asset["name"] in signer.BINARIES else source)
+                    source = (source_dir / asset["name"]).read_bytes()
+                    output.write_bytes(b"X" + source[1:] if tampered and asset["name"] in profile.payloads else source)
 
-                def sign(cosign, tag, staging, output):
-                    self.assertEqual(tag, self.tag)
+                def sign(cosign, signed_tag, staging, output):
+                    self.assertEqual(signed_tag, tag)
                     self.assertTrue(staging)
                     (output / signer.BUNDLE).write_text("fixture bundle")
                     flags["signed"] = True
 
+                env = self.event(tag, profile)
                 if tampered:
                     with self.assertRaisesRegex(ValueError, "downloaded bytes differ"):
-                        signer.sign_draft(self.event(self.tag), output, api=api, acquire=lambda _: None, sign=sign)
+                        signer.sign_draft(env, output, api=api, acquire=lambda _: None, sign=sign, profile=profile)
                 else:
-                    receipt = signer.sign_draft(self.event(self.tag), output, api=api, acquire=lambda _: None, sign=sign)
+                    receipt = signer.sign_draft(env, output, api=api, acquire=lambda _: None, sign=sign, profile=profile)
                     self.assertTrue(receipt["draft"])
                 self.assertEqual(flags, {"signed": not tampered, "uploaded": not tampered})
 
