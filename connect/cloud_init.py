@@ -97,7 +97,7 @@ prepare = []
 if arguments[0] == '--prepare-only':
     _, handoff, organization, environment, *arguments = arguments
     prepare = [sys.executable, handoff, 'prepare', organization, environment]
-url, digest, length, credential, *managed_tools = arguments
+url, digest, length, credential, owner, *managed_tools = arguments
 length = int(length)
 
 def check_credential(credential):
@@ -166,6 +166,8 @@ with tempfile.TemporaryDirectory(prefix='vitral-connect-', dir=destination.paren
         stage.rename(destination)
 if managed_tools:
     subprocess.run([sys.executable, *managed_tools], check=True, timeout=300)
+# A distro tmux build can move keeper panes into this user's systemd manager.
+subprocess.run(['loginctl', '--no-ask-password', 'enable-linger', owner], check=True, timeout=30)
 subprocess.run(['systemctl', 'daemon-reload'], check=True, timeout=30)
 if prepare:
     subprocess.run(prepare, check=True, timeout=30)
@@ -264,7 +266,7 @@ def render(*, owner, organization, origin, provider, cluster, method, credential
                         f'[Service]\n{common}InaccessiblePaths=-/run/credentials/vitral-connect-enroll.service\n'
                         f'ExecStart={ROOT}/bin/{argv}\n[Install]\nWantedBy=multi-user.target\n'),
         })
-    installer = ['python3', '-c', FETCH, url, sha256, str(size), credential]
+    installer = ['python3', '-c', FETCH, url, sha256, str(size), credential, owner]
     if claude_transcripts is not None or install_agent:
         files.append({'path': MANAGED_TOOLS, 'permissions': '0644',
                       'content': Path(__file__).with_name('managed_tools.py').read_text()})

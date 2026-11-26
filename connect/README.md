@@ -25,3 +25,7 @@ package. Codex retains the package resources used by its default daemon.
 
 Once enrollment succeeds, check the host and collector service status. Sign in
 to your agent with your own account and start it in the host keeper.
+
+
+The bootstrap enables systemd linger for the service account passed as
+`--owner`, so its tmux panes can survive the last SSH logout.
