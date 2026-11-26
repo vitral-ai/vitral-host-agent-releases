@@ -70,3 +70,17 @@ then choose which sessions to upload. The Windows script continues to rely on
 the existing signed host release format.
 
 To link a keeper to its exact Codex or Claude Code conversation, follow the [agent hook setup](docs/session-hooks.md).
+
+### Configuración guiada en español
+
+Ejecute el script de su sistema desde la carpeta de instalación verificada.
+Use los valores de API, registro, descubrimiento e ID de cliente que le
+entregó su equipo. En Linux o macOS ejecute `setup.sh`. En Windows abra
+PowerShell con su cuenta habitual y ejecute `setup.ps1`.
+
+Complete la aprobación del host y el inicio de sesión del colector cuando
+el asistente se lo indique. Elija solo conversaciones nuevas, las últimas N,
+todas o las de una carpeta. Solo las nuevas es la opción predeterminada.
+Al finalizar, use `vitral-host doctor` para comprobar la conexión y el
+colector. Los enlaces exactos a Codex y Claude Code son opcionales y se
+configuran con la [guía de ganchos](docs/session-hooks.md).

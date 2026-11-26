@@ -37,31 +37,38 @@ def scan(root):
     return entries
 
 
-def verified_cache_extras(expected, actual):
-    extras = actual.keys() - expected.keys()
-    bytecode = []
-    directories = []
-    for path in extras:
-        if (path.name == "__pycache__" and actual[path] == ("directory",)
-                and expected.get(path.parent, ("directory",) if str(path.parent) == "." else None)
-                == ("directory",)):
-            directories.append(path)
-        elif (path.parent.name == "__pycache__" and actual[path][0] == "file"
-              and re.fullmatch(r"[^/]+\.cpython-[0-9]+(?:\.opt-[0-9]+)?\.pyc", path.name)
-              and (expected.get(path.parent) == ("directory",) or path.parent in extras)):
-            bytecode.append(path)
-        else:
-            raise ValueError("unexpected retained file")
-    return bytecode, directories
+def source_bytecode(path, entry, expected):
+    if path.parent.name != "__pycache__" or entry[0] != "file":
+        return False
+    match = re.fullmatch(r"(.+)\.cpython-[0-9]+(?:\.opt-[0-9]+)?\.pyc", path.name)
+    if match is None:
+        return False
+    source = path.parent.parent / (match[1] + ".py")
+    return expected.get(source, (None,))[0] == "file"
 
 
 def verify(reference, retained):
     expected, actual = scan(reference), scan(retained)
-    if any(actual.get(path) != entry for path, entry in expected.items()):
-        raise ValueError("retained content differs from its verified archive")
-    bytecode, directories = verified_cache_extras(expected, actual)
-    # Python may create bytecode between installs. Remove only unverified
-    # generated caches before invoking any retained interpreter or source.
+    for path, entry in expected.items():
+        if not source_bytecode(path, entry, expected) and actual.get(path) != entry:
+            raise ValueError("retained content differs from its verified archive")
+
+    bytecode, directories = [], []
+    for path, entry in actual.items():
+        if source_bytecode(path, entry, expected):
+            bytecode.append(path)
+        elif path not in expected:
+            parent = expected.get(path.parent, ("directory",) if str(path.parent) == "." else None)
+            if path.name == "__pycache__" and entry == ("directory",) and parent == ("directory",):
+                directories.append(path)
+            else:
+                raise ValueError("unexpected retained file")
+        elif entry != expected[path]:
+            # Reject a link or a directory substituted for compiled bytecode.
+            raise ValueError("unexpected type for retained bytecode")
+
+    # Python may rewrite bytecode shipped in the archive after relocation.
+    # Retain the verified source and remove its regular bytecode before reuse.
     for item in bytecode:
         (retained / item).unlink()
     for item in directories:

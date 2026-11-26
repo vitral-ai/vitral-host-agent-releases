@@ -157,3 +157,26 @@ printf '%s\n' "$@" > "$VITRAL_TEST_ARGUMENTS"
         result = self.setup()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("unsafe shadow command", result.stderr)
+
+    def test_rewritten_precompiled_bytecode_is_removed(self):
+        self.install_fixture()
+        archive = io.BytesIO()
+        source = b"# pinned source\n"
+        with tarfile.open(fileobj=archive, mode="w:gz") as stream:
+            for name, payload in [
+                ("csl-pinned/csl_sync.py", source),
+                ("csl-pinned/__pycache__/csl_sync.cpython-313.pyc", b"compiled by producer"),
+            ]:
+                info = tarfile.TarInfo(name)
+                info.size = len(payload)
+                stream.addfile(info, io.BytesIO(payload))
+        self.pins = [line for line in self.pins if not line.startswith("all\tcsl\t")]
+        self.add_dependency("csl", archive.getvalue(), "all")
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        bytecode, = (self.root / "data").glob("csl-*/__pycache__/*.pyc")
+        bytecode.write_bytes(b"rewritten locally after relocation")
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(bytecode.exists())
+        self.assertEqual((bytecode.parent.parent / "csl_sync.py").read_bytes(), source)
