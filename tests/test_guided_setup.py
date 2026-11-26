@@ -2,6 +2,7 @@ import hashlib
 import io
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,7 @@ class GuidedSetupTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
-        for name in ("setup.sh", "install.sh"):
+        for name in ("setup.sh", "install.sh", "verify-setup-tree.py"):
             shutil.copyfile(ROOT / name, self.root / name)
         self.platform = "linux-arm64" if os.uname().machine == "aarch64" else "linux-amd64"
         self.pins = []
@@ -65,7 +66,8 @@ class GuidedSetupTests(unittest.TestCase):
 
     def install_fixture(self):
         self.add_dependency("cosign", b"#!/bin/sh\nexit 0\n")
-        self.add_archive("python", "python/bin/python3", b"#!/bin/sh\nexit 0\n")
+        runner = f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n'.encode()
+        self.add_archive("python", "python/bin/python3", runner)
         self.add_archive("csl", "csl-pinned/csl_sync.py", b"# source fixture\n", "all")
         self.add_archive("tmux", "tmux", b"#!/bin/sh\nexit 0\n")
         host = b'''#!/bin/sh
@@ -110,3 +112,36 @@ printf '%s\n' "$@" > "$VITRAL_TEST_ARGUMENTS"
         self.assertIn("Verification failed for cosign", result.stderr)
         self.assertFalse((self.root / "arguments").exists())
         self.assertFalse((self.root / "host-state").exists())
+
+    def test_tampered_retained_cosign_is_rejected_before_running(self):
+        self.install_fixture()
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        verifier, = (self.root / "data").glob("cosign-*/cosign")
+        verifier.write_text('#!/bin/sh\nprintf "unsafe verifier" >&2\n')
+        result = self.setup()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("The retained Cosign failed verification.", result.stderr)
+        self.assertNotIn("unsafe verifier", result.stderr)
+
+    def test_tampered_source_is_rejected_on_rerun(self):
+        self.install_fixture()
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        module, = (self.root / "data").glob("csl-*/csl_sync.py")
+        module.write_text("tampered")
+        result = self.setup()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("The retained csl dependency failed verification.", result.stderr)
+
+    def test_generated_bytecode_is_removed_before_reusing_source(self):
+        self.install_fixture()
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        module, = (self.root / "data").glob("csl-*/csl_sync.py")
+        bytecode = module.parent / "__pycache__" / "csl_sync.cpython-313.pyc"
+        bytecode.parent.mkdir()
+        bytecode.write_bytes(b"unverified file")
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(bytecode.exists())

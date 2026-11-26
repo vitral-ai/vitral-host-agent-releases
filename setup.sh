@@ -64,8 +64,15 @@ dependency() {
     [[ $pin =~ ^[0-9a-f]{64}$ && $size =~ ^[0-9]+$ && $url == https://* ]] ||
         fail "Invalid dependency pin for $dep on $platform."
     DEP_DIR="$root/$dep-$pin"
-    if [[ -d $DEP_DIR && ! -L $DEP_DIR && -O $DEP_DIR ]]; then
-        return
+    if [[ -e $DEP_DIR || -L $DEP_DIR ]]; then
+        [[ -d $DEP_DIR && ! -L $DEP_DIR && -O $DEP_DIR ]] ||
+            fail "The retained $dep directory is unsafe."
+        if [[ $dep == cosign ]]; then
+            [[ -f $DEP_DIR/cosign && ! -L $DEP_DIR/cosign ]] || fail "The retained Cosign is invalid."
+            actual=$(sha256 "$DEP_DIR/cosign")
+            [[ ${actual%% *} == "$pin" ]] || fail "The retained Cosign failed verification."
+            return
+        fi
     fi
     printf 'Downloading verified %s\n' "$dep" >&2
     downloaded="$work/$dep.download"
@@ -81,7 +88,10 @@ dependency() {
         csl) tar -xzf "$downloaded" --strip-components=1 -C "$work/$dep" ;;
         *) tar -xzf "$downloaded" -C "$work/$dep" ;;
     esac
-    if [[ $os == darwin ]]; then
+    if [[ -d $DEP_DIR ]]; then
+        "${verified_python:-$work/$dep/python/bin/python3}" -I -S -B "$here/verify-setup-tree.py" "$work/$dep" "$DEP_DIR" ||
+            fail "The retained $dep dependency failed verification."
+    elif [[ $os == darwin ]]; then
         mv -h -- "$work/$dep" "$DEP_DIR"
     else
         mv -T -- "$work/$dep" "$DEP_DIR"
@@ -102,6 +112,7 @@ fi
 
 dependency python "$os-$arch"
 python="$DEP_DIR/python/bin/python3"
+verified_python=$python
 [[ -x $python ]] || fail "Python was not installed."
 dependency csl all
 source_dir="$DEP_DIR"
@@ -115,7 +126,9 @@ tmux_dir="$host_state/tmux/bin"
 mkdir -p -- "$tmux_dir"
 [[ -O $host_state/tmux && -O $tmux_dir && ! -L $tmux_dir/tmux ]] ||
     fail "The existing tmux location is not owned by this account."
-if [[ ! -e $tmux_dir/tmux ]]; then
+if [[ -e $tmux_dir/tmux ]]; then
+    cmp -s "$DEP_DIR/tmux" "$tmux_dir/tmux" || fail "The managed tmux differs from the verified release."
+else
     install -m 0700 -- "$DEP_DIR/tmux" "$tmux_dir/tmux"
 fi
 [[ -f $tmux_dir/tmux && -x $tmux_dir/tmux && -O $tmux_dir/tmux ]] ||

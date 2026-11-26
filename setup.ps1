@@ -75,7 +75,15 @@ function Get-VerifiedDependency([string]$Name, [string]$Platform) {
         if (-not $existing.PSIsContainer -or ($existing.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
             throw "The existing $Name dependency has an unexpected location."
         }
-        return $destination
+        if ($Name -eq 'cosign') {
+            $binary = Get-Item -LiteralPath (Join-Path $destination 'cosign.exe')
+            if ($binary.PSIsContainer -or ($binary.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+                @(Get-ChildItem -LiteralPath $destination -Force).Count -ne 1 -or
+                (Get-FileHash -Algorithm SHA256 -LiteralPath $binary.FullName).Hash -ine $pin.SHA256) {
+                throw 'The retained Cosign failed verification.'
+            }
+            return $destination
+        }
     }
     Write-Host "Downloading verified $Name"
     $download = Join-Path $work "$Name.download"
@@ -95,10 +103,18 @@ function Get-VerifiedDependency([string]$Name, [string]$Platform) {
         & tar.exe @extract
         if ($LASTEXITCODE -ne 0) { throw "Could not extract $Name." }
     }
-    [IO.Directory]::Move($staging, $destination)
+    if (Test-Path -LiteralPath $destination) {
+        $verifier = $verifiedPython
+        if ($Name -eq 'python') { $verifier = Join-Path $staging 'python\python.exe' }
+        & $verifier -I -S -B (Join-Path $PSScriptRoot 'verify-setup-tree.py') $staging $destination
+        if ($LASTEXITCODE -ne 0) { throw "The retained $Name dependency failed verification." }
+    } else {
+        [IO.Directory]::Move($staging, $destination)
+    }
     return $destination
 }
 
+$verifiedPython = $null
 $oldPath = $env:PATH
 $oldApi = $env:VITRAL_API
 $null = New-Item -ItemType Directory -Path $work -Force
@@ -118,6 +134,7 @@ try {
 
     $pythonDir = Get-VerifiedDependency 'python' "windows-$arch"
     $python = Join-Path $pythonDir 'python\python.exe'
+    $verifiedPython = $python
     if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Python was not installed.' }
     $source = Get-VerifiedDependency 'csl' 'all'
     if (-not (Test-Path -LiteralPath (Join-Path $source 'csl_sync.py') -PathType Leaf)) {
