@@ -145,3 +145,15 @@ printf '%s\n' "$@" > "$VITRAL_TEST_ARGUMENTS"
         result = self.setup()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(bytecode.exists())
+
+    def test_extra_cached_cosign_command_is_outside_path(self):
+        self.install_fixture()
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        verifier, = (self.root / "data").glob("cosign-*/cosign")
+        shadow = verifier.parent / "sha256sum"
+        shadow.write_text('#!/bin/sh\nprintf "unsafe shadow command" >&2\nexit 13\n')
+        shadow.chmod(0o700)
+        result = self.setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("unsafe shadow command", result.stderr)

@@ -100,7 +100,11 @@ dependency() {
 
 dependency cosign "$os-$arch"
 [[ -x $DEP_DIR/cosign && ! -L $DEP_DIR/cosign ]] || fail "Cosign was not installed."
-export PATH="$DEP_DIR:$PATH"
+# Only the verified program participates in command lookup. The retained
+# dependency directory may also contain files outside the pinned artifact.
+mkdir -- "$work/verifier"
+install -m 0700 -- "$DEP_DIR/cosign" "$work/verifier/cosign"
+export PATH="$work/verifier:$PATH"
 host_dir="$root/$tag"
 install_args=(--tag "$tag" --bin-dir "$host_dir")
 if [[ -n $assets ]]; then install_args+=(--assets-dir "$assets"); fi
