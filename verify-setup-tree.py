@@ -1,0 +1,82 @@
+"""Verify retained setup dependencies against a freshly verified extraction."""
+
+from hashlib import file_digest
+from pathlib import Path
+import os
+import re
+import stat
+import sys
+
+
+def walk_error(error):
+    raise error
+
+
+def scan(root):
+    entries = {}
+    for directory, subdirs, files in os.walk(root, followlinks=False, onerror=walk_error):
+        for name in (*subdirs, *files):
+            path = Path(directory) / name
+            info = path.lstat()
+            mode = info.st_mode
+            if getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+                if not stat.S_ISLNK(mode):
+                    raise ValueError("unexpected Windows reparse point")
+            key = path.relative_to(root)
+            if stat.S_ISLNK(mode):
+                entries[key] = ("link", os.readlink(path))
+                if name in subdirs:
+                    subdirs.remove(name)
+            elif stat.S_ISDIR(mode):
+                entries[key] = ("directory",)
+            elif stat.S_ISREG(mode):
+                with path.open("rb") as stream:
+                    entries[key] = ("file", file_digest(stream, "sha256").hexdigest())
+            else:
+                raise ValueError("unexpected file type")
+    return entries
+
+
+def source_bytecode(path, entry, expected):
+    if path.parent.name != "__pycache__" or entry[0] != "file":
+        return False
+    match = re.fullmatch(r"(.+)\.cpython-[0-9]+(?:\.opt-[0-9]+)?\.pyc", path.name)
+    if match is None:
+        return False
+    source = path.parent.parent / (match[1] + ".py")
+    return expected.get(source, (None,))[0] == "file"
+
+
+def verify(reference, retained):
+    expected, actual = scan(reference), scan(retained)
+    for path, entry in expected.items():
+        if not source_bytecode(path, entry, expected) and actual.get(path) != entry:
+            raise ValueError("retained content differs from its verified archive")
+
+    bytecode, directories = [], []
+    for path, entry in actual.items():
+        if source_bytecode(path, entry, expected):
+            bytecode.append(path)
+        elif path not in expected:
+            parent = expected.get(path.parent, ("directory",) if str(path.parent) == "." else None)
+            if path.name == "__pycache__" and entry == ("directory",) and parent == ("directory",):
+                directories.append(path)
+            else:
+                raise ValueError("unexpected retained file")
+        elif entry != expected[path]:
+            # Reject a link or a directory substituted for compiled bytecode.
+            raise ValueError("unexpected type for retained bytecode")
+
+    # Python may rewrite bytecode shipped in the archive after relocation.
+    # Retain the verified source and remove its regular bytecode before reuse.
+    for item in bytecode:
+        (retained / item).unlink()
+    for item in directories:
+        (retained / item).rmdir()
+
+
+if __name__ == "__main__":
+    try:
+        verify(Path(sys.argv[1]), Path(sys.argv[2]))
+    except (OSError, ValueError):
+        sys.exit("Retained setup dependency failed verification. Choose a clean setup data directory.")

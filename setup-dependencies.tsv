@@ -1,0 +1,17 @@
+# platform<TAB>dependency<TAB>SHA256<TAB>bytes<TAB>URL
+linux-amd64	cosign	424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa	145688404	https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-amd64
+linux-arm64	cosign	ade83b7aac62e131cacfe96d958948b2150cc9efec46a570a2649b8e27dedad2	136437761	https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-arm64
+darwin-amd64	cosign	9d1e4abe2b6be279ed0d2ff706fde1ccd738747c834e3e6d44039c238867334f	105951973	https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-darwin-amd64
+darwin-arm64	cosign	9f9b8cd557cf2e5b3df3373a00baa005a86b02391e3e06dd0ce37b3a1533d3a4	99023586	https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-darwin-arm64
+windows-amd64	cosign	cbe953787074611f1334cbf37dc1cf953995bb8c45398eb4fc7bb781d29c1f2a	191066624	https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-windows-amd64.exe
+linux-amd64	python	86ed5fcc8f99d3d85dad7336af68e914d9ce3559dc760dd6cf1f2d06df6601d5	77182202	https://github.com/astral-sh/python-build-standalone/releases/download/20261124/cpython-3.13.18%2B20261124-x86_64-unknown-linux-gnu-install_only.tar.gz
+linux-arm64	python	5f1318c691661c0d65368c4dbc13cde8cb87757252cbc0c2d6fd828a23b8a522	59068476	https://github.com/astral-sh/python-build-standalone/releases/download/20261124/cpython-3.13.18%2B20261124-aarch64-unknown-linux-gnu-install_only.tar.gz
+darwin-amd64	python	0c3b06cbceff2c45077eb81718e604893401365a394f16a7ac380e92ce150e41	25384697	https://github.com/astral-sh/python-build-standalone/releases/download/20261124/cpython-3.13.18%2B20261124-x86_64-apple-darwin-install_only.tar.gz
+darwin-arm64	python	ae7030747b3daddea6925f4e270918c5d977f0347fe5d03adae94ce3a630ed74	25656016	https://github.com/astral-sh/python-build-standalone/releases/download/20261124/cpython-3.13.18%2B20261124-aarch64-apple-darwin-install_only.tar.gz
+windows-amd64	python	9c22438c8f107dc88505394a87a61aab3504d33d1ce4e22eb177381e5e9b244f	48600477	https://github.com/astral-sh/python-build-standalone/releases/download/20261124/cpython-3.13.18%2B20261124-x86_64-pc-windows-msvc-install_only.tar.gz
+windows-arm64	python	2ade2f9c1b4fcb68dc0e54768ed94777516d7767fbff74e35bf04aaf40536b7a	45827063	https://github.com/astral-sh/python-build-standalone/releases/download/20261124/cpython-3.13.18%2B20261124-aarch64-pc-windows-msvc-install_only.tar.gz
+linux-amd64	tmux	147849ff18b62a8aa3d5d8f75dd07c3f9fdfad529f932236afdec838fc1d15e1	1077204	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-linux-x86_64.tar.gz
+linux-arm64	tmux	f399311b1159705e69839eaf4f6f68c8b8540dc3a8538b87c30dedb9c3c7fc23	1073173	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-linux-arm64.tar.gz
+darwin-amd64	tmux	e7b92e51d9e9610ce80d1c477da1e6ff6a6398ea6b6b4d4ff7b19cf60f594555	760682	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-macos-x86_64.tar.gz
+darwin-arm64	tmux	ec926bbf28ddf55d0dc7c9791d43e03e251ddab392d763f7fbb38d4b8408d051	725788	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-macos-arm64.tar.gz
+all	csl	7d8acaad8f5a37446ff4daa51589fe6db92e702d8536b6bd43604eee390dafb0	1416654	https://codeload.github.com/vitral-ai/context-session-librarian/tar.gz/e069e58ef78f57fa341618e35b418e119d6e7d3a

@@ -7,7 +7,7 @@ your PATH. All downloads are public.
 ## Linux and macOS
 
 ```bash
-tag=host-agent-publish-v0.2.0
+tag=host-agent-publish-v0.3.0
 curl -fsSLo install.sh "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/main/install.sh"
 bash install.sh --tag "$tag"
 "$HOME/.local/bin/vitral-host" version
@@ -19,7 +19,7 @@ bash install.sh --tag "$tag"
 Run these commands as the user who will run the host, from PowerShell:
 
 ```powershell
-$tag = 'host-agent-publish-v0.2.0'
+$tag = 'host-agent-publish-v0.3.0'
 curl.exe -fsSLo install.ps1 "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/$tag/install.ps1"
 & .\install.ps1 -Tag $tag
 $hostExe = Join-Path $env:LOCALAPPDATA 'Vitral\bin\vitral-host.exe'
@@ -47,3 +47,40 @@ manifest. Use `sha256sum` on Linux, `shasum -a 256` on macOS, or
 
 The signing workflow attaches the bundle to a draft. Publication requires a
 separate operator decision. See the [draft signing procedure](docs/client-draft-signing.md).
+
+## Guided host and Sessions setup
+
+Use a signed release that advertises guided setup. Run the scripts from a
+verified checkout so they can use the adjacent installer and dependency pins.
+Your Vitral administrator supplies the four deployment values.
+
+```bash
+./setup.sh --tag "$tag" --api "$api" --registry "$registry" \
+  --discovery-url "$discovery" --client-id "$client_id"
+```
+
+```powershell
+.\setup.ps1 -Tag $tag -Api $api -Registry $registry -DiscoveryUrl $discovery -ClientId $clientId
+```
+
+The scripts verify dependencies before extracting them and use the existing
+Sigstore release installer for the host executable. They install under your
+user account. Follow the host device approval and collector browser sign-in,
+then choose which sessions to upload. The Windows script continues to rely on
+the existing signed host release format.
+
+To link a keeper to its exact Codex or Claude Code conversation, follow the [agent hook setup](docs/session-hooks.md).
+
+### Configuración guiada en español
+
+Ejecute el script de su sistema desde la carpeta de instalación verificada.
+Use los valores de API, registro, descubrimiento e ID de cliente que le
+entregó su equipo. En Linux o macOS ejecute `setup.sh`. En Windows abra
+PowerShell con su cuenta habitual y ejecute `setup.ps1`.
+
+Complete la aprobación del host y el inicio de sesión del colector cuando
+el asistente se lo indique. Elija solo conversaciones nuevas, las últimas N,
+todas o las de una carpeta. Solo las nuevas es la opción predeterminada.
+Al finalizar, use `vitral-host doctor` para comprobar la conexión y el
+colector. Los enlaces exactos a Codex y Claude Code son opcionales y se
+configuran con la [guía de ganchos](docs/session-hooks.md).
