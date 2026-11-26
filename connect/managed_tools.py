@@ -1,4 +1,5 @@
 """Install the native agent versions accepted by the paired workload collector."""
+import argparse
 import base64
 import hashlib
 import json
@@ -70,10 +71,14 @@ def extract(archive, root, integrity):
             target.chmod(0o755 if item.mode & 0o111 else 0o644)
 
 
-def install(destination, commands, machine, *, download=fetch):
+def install(destination, commands, machine, *, only=None, download=fetch):
     pins = PINS.get(machine)
     if not pins:
         raise ValueError('Unsupported architecture for the pinned native agents')
+    if only is not None:
+        pins = [pin for pin in pins if pin[0] == only]
+        if not pins:
+            raise ValueError('Unknown pinned native agent')
     links = {commands / name: destination / name / binary for name, _, _, binary, _ in pins}
     if destination.is_symlink():
         raise ValueError('Refusing to replace an existing agent installation')
@@ -112,4 +117,8 @@ def install(destination, commands, machine, *, download=fetch):
 
 
 if __name__ == '__main__':
-    install(Path('/opt/vitral-agent-tools'), Path('/usr/local/bin'), platform.machine())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--only', choices=('codex', 'claude'))
+    options = parser.parse_args()
+    install(Path('/opt/vitral-agent-tools'), Path('/usr/local/bin'), platform.machine(),
+            only=options.only)

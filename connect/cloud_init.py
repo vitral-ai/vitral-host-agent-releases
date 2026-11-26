@@ -185,7 +185,7 @@ def path(value):
 
 
 def render(*, owner, organization, origin, provider, cluster, method, credential, transcripts, url, sha256, size,
-           claude_transcripts=None, deferred_environment=None):
+           claude_transcripts=None, deferred_environment=None, install_agent=False):
     if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', owner) or owner == 'root':
         raise ValueError('Choose an existing nonroot account')
     if not re.fullmatch(r'[0-9a-f]{24}', organization):
@@ -265,7 +265,7 @@ def render(*, owner, organization, origin, provider, cluster, method, credential
                         f'ExecStart={ROOT}/bin/{argv}\n[Install]\nWantedBy=multi-user.target\n'),
         })
     installer = ['python3', '-c', FETCH, url, sha256, str(size), credential]
-    if claude_transcripts is not None:
+    if claude_transcripts is not None or install_agent:
         files.append({'path': MANAGED_TOOLS, 'permissions': '0644',
                       'content': Path(__file__).with_name('managed_tools.py').read_text()})
         files.append({
@@ -276,6 +276,8 @@ def render(*, owner, organization, origin, provider, cluster, method, credential
                         f'ExecStart={ROOT}/bin/vitral-host install-agent-wrap\n'),
         })
         installer.append(MANAGED_TOOLS)
+        if claude_transcripts is None:
+            installer.extend(('--only', provider))
     if deferred_environment is not None:
         files.append({'path': HANDOFF, 'permissions': '0644',
                       'content': Path(__file__).with_name('managed_handoff.py').read_text()})
@@ -294,6 +296,8 @@ def main():
     parser.add_argument('--size', type=int, required=True)
     parser.add_argument('--claude-transcripts')
     parser.add_argument('--deferred-environment')
+    parser.add_argument('--install-agent', action='store_true',
+                        help='Install the complete pinned package for the selected agent')
     print(render(**vars(parser.parse_args())))
 
 
