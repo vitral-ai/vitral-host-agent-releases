@@ -1,5 +1,7 @@
 """Render a Linux VM bootstrap from a pinned public Vitral Connect bundle."""
 import argparse
+import base64
+import gzip
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -164,6 +166,7 @@ with tempfile.TemporaryDirectory(prefix='vitral-connect-', dir=destination.paren
     else:
         (stage / marker.name).write_text(digest)
         stage.rename(destination)
+subprocess.run([sys.executable, '/usr/local/libexec/vitral-connect-personal-csl.py'], check=True, timeout=90)
 if managed_tools:
     subprocess.run([sys.executable, *managed_tools], check=True, timeout=300)
 # A distro tmux build can move keeper panes into this user's systemd manager.
@@ -255,6 +258,12 @@ def render(*, owner, organization, origin, provider, cluster, method, credential
                   f'ExecStart={ROOT}/bin/csl-workload-collector --connect-runtime\n'
                   f'ExecStartPost=/usr/bin/touch {STATE}/enrollment-complete\n')
     files = [{
+        'path': '/usr/local/libexec/vitral-connect-personal-csl.py', 'permissions': '0644',
+        'encoding': 'gzip+b64',
+        'content': base64.b64encode(gzip.compress(
+            Path(__file__).with_name('personal_csl.py').read_bytes(), mtime=0,
+        )).decode('ascii'),
+    }, {
         'path': '/etc/systemd/system/vitral-connect-enroll.service', 'permissions': '0644',
         'content': ('[Unit]\nAfter=network-online.target\nWants=network-online.target\n'
                     f'ConditionPathExists=!{STATE}/enrollment-complete\n[Service]\n' + enrollment),
