@@ -50,8 +50,7 @@ separate operator decision. See the [draft signing procedure](docs/client-draft-
 
 ## Guided host and Sessions setup
 
-Use the signed v0.4.1 tag shown above. Check out that tag before running the
-guided scripts so they use its adjacent installer and dependency pins.
+Run the guided scripts from a verified checkout of [bootstrap commit `189094a8ad73b394a800bdb5e28cbc24bcef5c87`](https://github.com/vitral-ai/vitral-host-agent-releases/tree/189094a8ad73b394a800bdb5e28cbc24bcef5c87). Keep the scripts, installer, and dependency pins together from that checkout. Pass the signed host tag `host-agent-publish-v0.4.1` shown above to install the host binary.
 Your Vitral administrator supplies the four deployment values.
 
 ```bash

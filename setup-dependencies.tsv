@@ -14,4 +14,4 @@ linux-amd64	tmux	147849ff18b62a8aa3d5d8f75dd07c3f9fdfad529f932236afdec838fc1d15e
 linux-arm64	tmux	f399311b1159705e69839eaf4f6f68c8b8540dc3a8538b87c30dedb9c3c7fc23	1073173	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-linux-arm64.tar.gz
 darwin-amd64	tmux	e7b92e51d9e9610ce80d1c477da1e6ff6a6398ea6b6b4d4ff7b19cf60f594555	760682	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-macos-x86_64.tar.gz
 darwin-arm64	tmux	ec926bbf28ddf55d0dc7c9791d43e03e251ddab392d763f7fbb38d4b8408d051	725788	https://github.com/tmux/tmux-builds/releases/download/v3.8/tmux-3.8-macos-arm64.tar.gz
-all	csl	5d6a57e3d459cf4b9cfd007d4f4cd539281610db9022b98780f0b9ec47fe00e0	1431597	https://codeload.github.com/vitral-ai/context-session-librarian/tar.gz/320bb3173e07a3787798579b15a56f6b83aebb73
+all	csl	5cf347865f6d88e93430612f53fc19195cbac20277674b3303a3c677e57e7b6c	1449413	https://codeload.github.com/vitral-ai/context-session-librarian/tar.gz/b351570d87e418db440eabf2ff535fa773f0a7fa
