@@ -270,12 +270,17 @@ def render(*, owner, organization, origin, provider, cluster, method, credential
     if claude_transcripts is not None or install_agent:
         files.append({'path': MANAGED_TOOLS, 'permissions': '0644',
                       'content': Path(__file__).with_name('managed_tools.py').read_text()})
+        host_binary = ROOT + '/bin/vitral-host'
+        codex_hook = ''
+        if provider == 'codex':
+            codex_hook = (f"ExecStart=/bin/sh -ec 'if {host_binary} install-session-hook --help >/dev/null 2>&1; "
+                          f"then exec {host_binary} install-session-hook codex; fi'\n")
         files.append({
             'path': '/etc/systemd/system/vitral-connect-wrapper.service', 'permissions': '0644',
             'content': ('[Unit]\nAfter=vitral-connect-enroll.service\nRequires=vitral-connect-enroll.service\n'
                         f'ConditionPathExists={STATE}/enrollment-complete\n[Service]\n{common}Type=oneshot\n'
                         'InaccessiblePaths=-/run/credentials/vitral-connect-enroll.service\n'
-                        f'ExecStart={ROOT}/bin/vitral-host install-agent-wrap\n'),
+                        f'ExecStart={host_binary} install-agent-wrap\n' + codex_hook),
         })
         installer.append(MANAGED_TOOLS)
         if claude_transcripts is None:

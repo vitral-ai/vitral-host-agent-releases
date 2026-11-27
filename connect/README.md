@@ -22,6 +22,8 @@ rerun the rendered installation command after the handoff.
 Add `--install-agent` to install the pinned full package for the selected
 agent. For Codex, the guest also needs `ps`, available in Ubuntu's `procps`
 package. Codex retains the package resources used by its default daemon.
+If the installed Vitral host supports `install-session-hook codex`, the
+owner-scoped setup registers and authorizes that exact SessionStart hook.
 
 Once enrollment succeeds, check the host and collector service status. Sign in
 to your agent with your own account and start it in the host keeper.
