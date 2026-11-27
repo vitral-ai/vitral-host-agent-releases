@@ -1,7 +1,7 @@
 # Install Vitral Connect on a Linux VM
 
-Use the [tagged renderer](https://github.com/vitral-ai/vitral-host-agent-releases/tree/connect-vm-publish-v0.4.6/connect)
-with the immutable [Connect VM v0.4.6 release](https://github.com/vitral-ai/vitral-host-agent-releases/releases/tag/connect-vm-publish-v0.4.6).
+The [tagged renderer](https://github.com/vitral-ai/vitral-host-agent-releases/tree/connect-vm-publish-v0.4.6/connect)
+ships with the immutable [Connect VM v0.4.6 release](https://github.com/vitral-ai/vitral-host-agent-releases/releases/tag/connect-vm-publish-v0.4.6).
 It bundles signed Vitral Host v0.4.6 and the CSL v0.5.8 workload collector.
 
 | Architecture | Archive | Bytes | SHA-256 |
@@ -24,10 +24,16 @@ installation command runs. On a guest that boots before the credential arrives,
 rerun the rendered installation command after the handoff.
 
 Add `--install-agent` to install the pinned full package for the selected
-agent. For Codex, the guest also needs `ps`, available in Ubuntu's `procps`
-package. Codex retains the package resources used by its default daemon.
+agent. The updated renderer installs `procps` or `procps-ng` for Codex when
+`ps` is missing. Codex retains the package resources used by its default
+daemon. The tagged v0.4.6 renderer expects `ps` to be present already.
 If the installed Vitral host supports `install-session-hook codex`, the
 owner-scoped setup registers and authorizes that exact SessionStart hook.
+
+The updated renderer also installs the CSL v0.5.8 personal tooling, pinned by
+source digest. In the owner's Bash login shell, run `command -v csl
+csl-resume-action` to verify both launchers. Personal collector sign-in is a
+separate owner action.
 
 Once enrollment succeeds, check the host and collector service status. Sign in
 to your agent with your own account and start it in the host keeper.

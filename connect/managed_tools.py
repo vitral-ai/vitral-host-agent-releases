@@ -116,9 +116,27 @@ def install(destination, commands, machine, *, only=None, download=fetch):
             link.symlink_to(binary)
 
 
+def ensure_ps():
+    if shutil.which('ps'):
+        return
+    if shutil.which('apt-get'):
+        env = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'}
+        subprocess.run(['apt-get', 'update'], check=True, timeout=90, env=env)
+        subprocess.run(['apt-get', 'install', '-y', '--no-install-recommends', 'procps'],
+                       check=True, timeout=90, env=env)
+    elif manager := shutil.which('dnf') or shutil.which('yum'):
+        subprocess.run([manager, 'install', '-y', 'procps-ng'], check=True, timeout=90)
+    elif shutil.which('zypper'):
+        subprocess.run(['zypper', '--non-interactive', 'install', 'procps'], check=True, timeout=90)
+    if not shutil.which('ps'):
+        raise ValueError('Codex requires the system procps package (ps)')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--only', choices=('codex', 'claude'))
     options = parser.parse_args()
+    if options.only != 'claude':
+        ensure_ps()
     install(Path('/opt/vitral-agent-tools'), Path('/usr/local/bin'), platform.machine(),
             only=options.only)
