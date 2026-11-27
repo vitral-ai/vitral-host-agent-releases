@@ -21,11 +21,13 @@ Run these commands as the user who will run the host, from PowerShell:
 ```powershell
 $tag = 'host-agent-publish-v0.4.1'
 curl.exe -fsSLo install.ps1 "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/$tag/install.ps1"
-& .\install.ps1 -Tag $tag
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Tag $tag
 $hostExe = Join-Path $env:LOCALAPPDATA 'Vitral\bin\vitral-host.exe'
 & $hostExe version
 & $hostExe install
 ```
+
+The Windows command applies its execution policy to the child PowerShell process only.
 
 Both installers verify the checksum manifest against the exact release tag's
 GitHub Actions signing identity, then verify the matching executable before
@@ -59,7 +61,7 @@ Your Vitral administrator supplies the four deployment values.
 ```
 
 ```powershell
-.\setup.ps1 -Tag $tag -Api $api -Registry $registry -DiscoveryUrl $discovery -ClientId $clientId
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Tag $tag -Api $api -Registry $registry -DiscoveryUrl $discovery -ClientId $clientId
 ```
 
 The scripts verify dependencies before extracting them and use the existing
@@ -75,7 +77,8 @@ To link a keeper to its exact Codex or Claude Code conversation, follow the [age
 Ejecute el script de su sistema desde la carpeta de instalación verificada.
 Use los valores de API, registro, descubrimiento e ID de cliente que le
 entregó su equipo. En Linux o macOS ejecute `setup.sh`. En Windows abra
-PowerShell con su cuenta habitual y ejecute `setup.ps1`.
+PowerShell con su cuenta habitual y use el comando de Windows de arriba.
+El comando aplica la directiva de ejecución solo al proceso que ejecuta el instalador.
 
 Complete la aprobación del host y el inicio de sesión del colector cuando
 el asistente se lo indique. Elija solo conversaciones nuevas, las últimas N,
