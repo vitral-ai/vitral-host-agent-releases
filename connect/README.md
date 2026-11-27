@@ -1,18 +1,18 @@
 # Install Vitral Connect on a Linux VM
 
-Use the [tagged renderer](https://github.com/vitral-ai/vitral-host-agent-releases/tree/connect-vm-publish-v0.4.4/connect)
-with the immutable [Connect VM v0.4.4 release](https://github.com/vitral-ai/vitral-host-agent-releases/releases/tag/connect-vm-publish-v0.4.4).
-It bundles signed Vitral Host v0.4.4 and the CSL v0.5.7 workload collector.
+Use the [tagged renderer](https://github.com/vitral-ai/vitral-host-agent-releases/tree/connect-vm-publish-v0.4.5/connect)
+with the immutable [Connect VM v0.4.5 release](https://github.com/vitral-ai/vitral-host-agent-releases/releases/tag/connect-vm-publish-v0.4.5).
+It bundles signed Vitral Host v0.4.5 and the CSL v0.5.7 workload collector.
 
 | Architecture | Archive | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| x86-64 | `vitral-connect-linux-amd64.tar` | 12032000 | `f4d64f82e020e655b9f22c45c3ad03e9ec937ee6e0e846c8de4f909f82eaa454` |
-| AArch64 | `vitral-connect-linux-arm64.tar` | 11304960 | `0c845e18d0609fb1d11aa38c445bc29624deba731b8f69a5f4a7aa0372752f63` |
+| x86-64 | `vitral-connect-linux-amd64.tar` | 12032000 | `885cb3becdb0117bb1d91c7b2d7c5a4afd636c464242ddaf751dc2b29ef3b020` |
+| AArch64 | `vitral-connect-linux-arm64.tar` | 11304960 | `02a16a91a2159b029b45348c1d55fd3830a68128d8a6babbceff66319a9f8fa4` |
 
 The VM needs systemd, Python 3.11 or later, OpenSSH and an existing nonroot
 account. Render its user data with `python3 connect/cloud_init.py --help`.
 Set `--url` to the selected archive under
-`https://github.com/vitral-ai/vitral-host-agent-releases/releases/download/connect-vm-publish-v0.4.4/`,
+`https://github.com/vitral-ai/vitral-host-agent-releases/releases/download/connect-vm-publish-v0.4.5/`,
 and supply `--size` and `--sha256`. The installer verifies the tagged GitHub
 Actions signer before checking and extracting the archive.
 
