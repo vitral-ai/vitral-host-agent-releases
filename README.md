@@ -7,7 +7,7 @@ your PATH. All downloads are public.
 ## Linux and macOS
 
 ```bash
-tag=host-agent-publish-v0.4.1
+tag=host-agent-publish-v0.4.2
 curl -fsSLo install.sh "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/$tag/install.sh"
 bash install.sh --tag "$tag"
 "$HOME/.local/bin/vitral-host" version
@@ -19,7 +19,7 @@ bash install.sh --tag "$tag"
 Run these commands as the user who will run the host, from PowerShell:
 
 ```powershell
-$tag = 'host-agent-publish-v0.4.1'
+$tag = 'host-agent-publish-v0.4.2'
 curl.exe -fsSLo install.ps1 "https://raw.githubusercontent.com/vitral-ai/vitral-host-agent-releases/$tag/install.ps1"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Tag $tag
 $hostExe = Join-Path $env:LOCALAPPDATA 'Vitral\bin\vitral-host.exe'
@@ -52,7 +52,7 @@ separate operator decision. See the [draft signing procedure](docs/client-draft-
 
 ## Guided host and Sessions setup
 
-Run the guided scripts from a verified checkout of [bootstrap commit `3d14162794cfd9f20303923e85e04146b785ca34`](https://github.com/vitral-ai/vitral-host-agent-releases/tree/3d14162794cfd9f20303923e85e04146b785ca34). Keep the scripts, installer, and dependency pins together from that checkout. Pass the signed host tag `host-agent-publish-v0.4.1` shown above to install the host binary.
+Run the guided scripts from a verified checkout of [bootstrap commit `e657a888438d0460dee3e5ee180ac9e038276a99`](https://github.com/vitral-ai/vitral-host-agent-releases/tree/e657a888438d0460dee3e5ee180ac9e038276a99). Keep the scripts, installer, and dependency pins together from that checkout. Pass the signed host tag `host-agent-publish-v0.4.2` shown above to install the host binary.
 Your Vitral administrator supplies the four deployment values.
 
 ```bash
